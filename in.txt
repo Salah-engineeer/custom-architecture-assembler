@@ -1,0 +1,15 @@
+PROG    START   1000
+FIRST   LDA     ALPHA
+LOOP    STA     BETA
+        ADD     GAMMA
+        USE     CDATA
+MSG     BYTE    C'HELLO'
+COUNT   WORD    1
+        USE     CBLKS
+BUFFER  RESB    10
+TABLE   RESW    2
+        USE
+LAST    CLEAR   A
+        LDA     &X'10'
+        ADD     &X'FF'
+        END     FIRST
