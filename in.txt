@@ -1,15 +1,22 @@
-PROG    START   1000
-FIRST   LDA     ALPHA
-LOOP    STA     BETA
-        ADD     GAMMA
+COPY    START   0
+FIRST   CLEAR   X
+        CLEAR   A
+        USE     DEFAULTB
+        LDA     #0
+        LDB     #BASEVAL
+        BASE    BASEVAL
+        LDA     ALPHA
+        ADD     &C'EOF'
+        STA     BETA
+        LDA     @GAMMA
+        +LDX    ALPHA
+        ADD     &X'0F'
+        STCH    GAMMA,X
+        RSUB
         USE     CDATA
-MSG     BYTE    C'HELLO'
-COUNT   WORD    1
+ALPHA   WORD    5
+BETA    RESW    1
+BASEVAL WORD    4096
         USE     CBLKS
-BUFFER  RESB    10
-TABLE   RESW    2
-        USE
-LAST    CLEAR   A
-        LDA     &X'10'
-        ADD     &X'FF'
-        END     FIRST
+GAMMA   RESB    5376
+        END     COPY
