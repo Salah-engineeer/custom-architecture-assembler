@@ -1,22 +1,25 @@
 import sys
+import json
+
+input_file = sys.argv[1] if len(sys.argv) >= 2 else "in.txt"
 from opcode_table import OPTAB
 
 Symbol_table = {}
 pool_table = {}
 intermediate = []
-block_order=[]
+block_order = []
 VALID_BLOCKS = {"DEFAULT", "DEFAULTB", "CDATA", "CBLKS"}
 block = {
-    "DEFAULT":  {"lc": 0x000000, "start": 0x000000, "num": -1, "address": 0},
+    "DEFAULT": {"lc": 0x000000, "start": 0x000000, "num": -1, "address": 0},
     "DEFAULTB": {"lc": 0x000000, "start": 0x000000, "num": -1, "address": 0},
-    "CDATA":    {"lc": 0x000000, "start": 0x000000, "num": -1, "address": 0},
-    "CBLKS":    {"lc": 0x000000, "start": 0x000000, "num": -1, "address": 0},
-    "POOL":    {"lc": 0x000000, "start": 0x000000, "num": -1, "address": 0}
+    "CDATA": {"lc": 0x000000, "start": 0x000000, "num": -1, "address": 0},
+    "CBLKS": {"lc": 0x000000, "start": 0x000000, "num": -1, "address": 0},
+    "POOL": {"lc": 0x000000, "start": 0x000000, "num": -1, "address": 0}
 }
 current_block = "DEFAULT"
-block_counter=0
+block_counter = 0
 
-with open('in.txt', 'r') as file:
+with open(input_file, 'r') as file:
     for line in file:
         words = line.split()
         if not words or words[0].startswith('.'):
@@ -41,7 +44,7 @@ with open('in.txt', 'r') as file:
             block["DEFAULT"]["start"] = start
             block["DEFAULT"]["num"] = 0
             block["DEFAULT"]["address"] = start
-            block_counter=1
+            block_counter = 1
             block_order.append("DEFAULT")
             if symbol != "":
                 Symbol_table[symbol] = {
@@ -67,7 +70,7 @@ with open('in.txt', 'r') as file:
 
         elif instruction == "USE":
             intermediate.append({
-                 "lc": "",
+                "lc": "",
                 "symbol": "",
                 "instruction": instruction,
                 "reference": reference
@@ -138,7 +141,7 @@ with open('in.txt', 'r') as file:
                         "obj_code": obj_code
                     }
                     block["POOL"]["lc"] += length
-                    
+
             if instruction == "RESW":
                 block[current_block]["lc"] += int(reference) * 3
             elif instruction == "RESB":
@@ -168,28 +171,36 @@ with open('in.txt', 'r') as file:
                 "instruction": instruction,
                 "reference": reference
             })
+
+
 current_address = block["DEFAULT"]["start"]
 for name in block_order:
     block[name]["address"] = current_address
     size = block[name]["lc"] - block[name]["start"]
     current_address += size
+
 total_length = current_address - block["DEFAULT"]["start"]
+
+
 for sym in Symbol_table:
-        rel = Symbol_table[sym]["rel_addr"]
-        blk = Symbol_table[sym]["block"]
-        abs_addr = block[blk]["address"] + (rel - block[blk]["start"])
-        Symbol_table[sym] = f"{abs_addr:04X}"
+    rel = Symbol_table[sym]["rel_addr"]
+    blk = Symbol_table[sym]["block"]
+    abs_addr = block[blk]["address"] + (rel - block[blk]["start"])
+    Symbol_table[sym] = f"{abs_addr:06X}"
+
 
 for operand in pool_table:
-        rel = pool_table[operand]["rel_addr"]
-        abs_addr = block["POOL"]["address"] + (rel - block["POOL"]["start"])
-        pool_table[operand]["abs_addr"] = abs_addr
+    rel = pool_table[operand]["rel_addr"]
+    abs_addr = block["POOL"]["address"] + (rel - block["POOL"]["start"])
+    pool_table[operand]["abs_addr"] = abs_addr
+
 
 with open("intermediate.txt", "w") as f:
     f.write(f"{'Location counter':<18} {'Symbol':<10} {'Instructions':<14} {'Reference'}\n")
-    f.write("-"*16 + " " + "-"*8 + " " + "-"*12 + " " + "-"*10 + "\n")
+    f.write("-" * 16 + " " + "-" * 8 + " " + "-" * 12 + " " + "-" * 10 + "\n")
     for entry in intermediate:
         f.write(f"{entry['lc']:<18} {entry['symbol']:<10} {entry['instruction']:<14} {entry['reference']}\n")
+
 
 with open("symbTable.txt", "w") as f:
     f.write(f"{'SYMBOL':<12} {'ADDRESS'}\n")
@@ -197,11 +208,13 @@ with open("symbTable.txt", "w") as f:
     for sym, addr in Symbol_table.items():
         f.write(f"{sym:<12} {addr}\n")
 
+
 with open("PoolTable.txt", "w") as f:
     f.write(f"{'POOL NAME':<14} {'ADDRESS':<10} {'LENGTH':<8} {'OBJECT CODE'}\n")
     f.write("-" * 44 + "\n")
     for operand, data in pool_table.items():
-        f.write(f"{operand:<14} {data['abs_addr']:04X}      {data['length']:<8} {data['obj_code']}\n")
+        f.write(f"{operand:<14} {data['abs_addr']:06X}    {data['length']:<8} {data['obj_code']}\n")
+
 
 with open("blockTable.txt", "w") as f:
     f.write(f"{'BLOCK NAME':<14} {'BLOCK NUMBER':<14} {'ADDRESS':<10} {'SIZE'}\n")
@@ -209,19 +222,31 @@ with open("blockTable.txt", "w") as f:
     for name in block_order:
         size = block[name]["lc"] - block[name]["start"]
         f.write(f"{name:<14} {block[name]['num']:<14} {block[name]['address']:04X}      {size:04X}\n")
-    f.write(f"\nTotal program length: {total_length:04X}\n")
-
-print("\nPOOL TABLE:")
-for k, v in pool_table.items():
-    print(f"  {k:<14} addr={v['abs_addr']:04X} len={v['length']} obj={v['obj_code']}")
-
+    f.write(f"\nTotal program length: {total_length:X}\n")
 
 print("\nSYMBOL TABLE:")
 for k, v in Symbol_table.items():
     print(f"  {k:<12} {v}")
 
+print("\nPOOL TABLE:")
+for k, v in pool_table.items():
+    print(f"  {k:<14} addr={v['abs_addr']:06X} len={v['length']} obj={v['obj_code']}")
+
 print("\nBLOCK TABLE:")
 for name in block_order:
     size = block[name]["lc"] - block[name]["start"]
     print(f"  {name:<12} num={block[name]['num']} address={block[name]['address']:04X} size={size:04X}")
-print(f"\nTotal program length: {total_length:04X}")
+
+print(f"\nTotal program length: {total_length:X}")
+
+
+pass1_data = {
+    "Symbol_table": Symbol_table,
+    "pool_table": pool_table,
+    "intermediate": intermediate,
+    "block_order": block_order,
+    "block": block,
+    "total_length": total_length
+}
+with open("pass1_data.json", "w") as f:
+    json.dump(pass1_data, f)

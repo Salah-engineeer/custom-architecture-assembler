@@ -22,11 +22,13 @@ def display_memory(memory, text_widget):
     text_widget.config(state=tk.NORMAL)
     text_widget.delete('1.0', tk.END)
 
-    # header
     text_widget.insert(tk.END, "Address:  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F\n", "header")
     text_widget.insert(tk.END, "-" * 58 + "\n", "header")
 
-    for row in range(0, 0x100, 16):
+    max_addr = max(memory.keys()) if memory else 0
+    end_addr = max(0x100, ((max_addr // 16) + 2) * 16)
+
+    for row in range(0, end_addr, 16):
         addr_str = f"{row:06X}: "
         bytes_str = " ".join(f"{memory.get(row + col, 0):02X}" for col in range(16))
         text_widget.insert(tk.END, addr_str, "addr")
@@ -75,7 +77,6 @@ def build_gui():
         relief=tk.FLAT, padx=10, pady=4
     )
     btn.pack(pady=6)
-
 
     display_memory(memory, text)
     root.mainloop()

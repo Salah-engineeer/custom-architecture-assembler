@@ -1,11 +1,22 @@
 import sys
+import json
 
-from pass1 import Symbol_table, pool_table, intermediate, block_order, block
+with open("pass1_data.json", "r") as f:
+    data = json.load(f)
+
+Symbol_table = data["Symbol_table"]
+pool_table = data["pool_table"]
+intermediate = data["intermediate"]
+block_order = data["block_order"]
+block = data["block"]
+total_length = data["total_length"]
+
 from opcode_table import OPTAB
 
 REGISTERS = {
     "A": 0, "X": 1, "L": 2, "B": 3, "S": 4, "T": 5, "F": 6, "PC": 8, "SW": 9
 }
+
 base_register = None
 program_name = ""
 start_address = 0
@@ -43,6 +54,14 @@ def resolve(reference):
 
 
 def compute_format3_4(instruction, reference, lc_abs, is_format4):
+
+    if reference == "":
+        base_instr = instruction.lstrip("+")
+        opcode_val = OPTAB[base_instr]["opcode"]
+        opcode_ni = (opcode_val & 0xFC) | (1 << 1) | 1  # n=1, i=1
+        return f"{opcode_ni:02X}0000"
+
+
     if reference.startswith("#"):
         n, i = 0, 1
         ref_clean = reference[1:]
@@ -63,7 +82,6 @@ def compute_format3_4(instruction, reference, lc_abs, is_format4):
     opcode_ni = (opcode_val & 0xFC) | (n << 1) | i
 
     is_pool_ref = ref_clean.startswith("&")
-
 
     if not is_pool_ref and ref_clean not in Symbol_table:
         try:
@@ -86,18 +104,20 @@ def compute_format3_4(instruction, reference, lc_abs, is_format4):
                 return f"{opcode_ni:02X}{byte2:02X}{byte3:02X}"
         except ValueError:
             pass
-   
-
     if is_pool_ref:
         if ref_clean not in pool_table:
             handle_error(f"Unidentified Symbol: {ref_clean}", lc_abs)
         target = pool_table[ref_clean]["abs_addr"]
     else:
         target = resolve(ref_clean)
+        if target is None:
+            handle_error(f"Unidentified Symbol: {ref_clean}", lc_abs)
+
 
     if is_format4:
-        e = 1
-        b, p = 0, 0
+        e = 1;
+        b = 0;
+        p = 0
         nixbpe = (n << 5) | (i << 4) | (x << 3) | (b << 2) | (p << 1) | e
         word = (opcode_ni << 24) | (nixbpe << 20) | (target & 0xFFFFF)
         obj_code = f"{word:08X}"
@@ -107,14 +127,7 @@ def compute_format3_4(instruction, reference, lc_abs, is_format4):
     e = 0
     pc_next = lc_abs + 3
 
-    if target is None:
-        try:
-            disp = int(ref_clean)
-        except:
-            disp = 0
-        b, p = 0, 0
-
-    elif -2048 <= (target - pc_next) <= 2047:
+    if -2048 <= (target - pc_next) <= 2047:
         disp = (target - pc_next) & 0xFFF
         b, p = 0, 1
 
@@ -131,8 +144,7 @@ def compute_format3_4(instruction, reference, lc_abs, is_format4):
     nixbpe = (n << 5) | (i << 4) | (x << 3) | (b << 2) | (p << 1) | e
     byte2 = (x << 7) | (b << 6) | (p << 5) | (e << 4) | ((disp >> 8) & 0xF)
     byte3 = disp & 0xFF
-    obj_code = f"{opcode_ni:02X}{byte2:02X}{byte3:02X}"
-    return obj_code
+    return f"{opcode_ni:02X}{byte2:02X}{byte3:02X}"
 
 
 def compute_byte(reference):
@@ -197,16 +209,17 @@ for entry in intermediate:
     elif instruction == "END":
         flush_t_record()
         if pool_table:
-            pool_codes = []
             pool_start = None
-            for operand, data in pool_table.items():
+            pool_codes = []
+            for operand, pdata in pool_table.items():
                 if pool_start is None:
-                    pool_start = data["abs_addr"]
-                pool_codes.append(data["obj_code"])
+                    pool_start = pdata["abs_addr"]
+                pool_codes.append(pdata["obj_code"])
             if pool_codes:
                 byte_length = sum(len(c) // 2 for c in pool_codes)
                 codes = ".".join(pool_codes)
                 text_records.append(f"T.{pool_start:06X}.{byte_length:02X}.{codes}")
+        # find first executable address from END operand
         if reference in Symbol_table:
             first_exec_addr = int(Symbol_table[reference], 16)
         else:
@@ -281,12 +294,6 @@ with open("out_pass2.txt", "w") as f:
     for entry in object_code_lines:
         f.write(
             f"{entry['lc']:<18} {entry['symbol']:<10} {entry['instruction']:<14} {entry['reference']:<14} {entry['obj_code']}\n")
-
-
-total_length = sum(
-    block[name]["lc"] - block[name]["start"]
-    for name in block_order
-)
 
 with open("HTME.txt", "w") as f:
     f.write(f"H.{program_name}.{start_address:06X}.{total_length:06X}\n")
